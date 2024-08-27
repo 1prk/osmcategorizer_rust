@@ -1,11 +1,10 @@
 mod osm_conditions;
+mod assessor;
 
 use osmpbf::{ElementReader, Element};
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
-use osm_conditions::{is_segregated, is_footpath, is_not_accessible, use_sidepath};
-
-
+use osm_conditions::Conditions;
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,6 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ähnlich einer dict mit der osm_id als integer_64, einer weiteren hashmap mit kv-pairs der attribute
     let mut osm_ways: HashMap<i64, HashMap<String, String>> = HashMap::new();
+
 
     let reader = ElementReader::from_path(path)?;
 
@@ -25,13 +25,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut tags: HashMap<_, _> = way.tags()
                 .map(|(key, value)| (key.to_owned(), value.to_owned()))
                 .collect();
+            let conditions = Conditions { tags: &tags };
             // for (key, value) in way.tags() {
             //     tags.insert(key.to_owned(), value.to_owned());
             // }
             //osm_ways.insert(way.id(), tags);
-            let segregated = is_segregated(&tags);
-            let footpath = is_footpath(&tags);
-            if is_footpath(&tags) || is_segregated(&tags) {
+            let segregated = conditions.is_segregated();
+            let footpath = conditions.is_footpath();
+            if footpath || segregated {
                 tags.insert("bicycle_infrastructure".to_string(), "bicycle_way".to_string());
             }
             else {
