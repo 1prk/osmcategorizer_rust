@@ -5,6 +5,7 @@ use osmpbf::{ElementReader, Element};
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
 use osm_conditions::Conditions;
+use assessor::Assessor;
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,21 +26,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut tags: HashMap<_, _> = way.tags()
                 .map(|(key, value)| (key.to_owned(), value.to_owned()))
                 .collect();
-            let conditions = Conditions { tags: &tags };
+            let conditions = Conditions { tags: &mut tags };
+            let mut assessor = Assessor { conditions, tags: &mut tags };
+            let assessor_infra = assessor.assess(conditions);
+
             // for (key, value) in way.tags() {
             //     tags.insert(key.to_owned(), value.to_owned());
             // }
             //osm_ways.insert(way.id(), tags);
-            let segregated = conditions.is_segregated();
-            let footpath = conditions.is_footpath();
-            if footpath || segregated {
-                tags.insert("bicycle_infrastructure".to_string(), "bicycle_way".to_string());
-            }
-            else {
-                tags.insert("bicycle_infrastructure".to_string(), "None".to_string());
-            }
-            println!("osm_id {} is segregated: {}, is footpath {}, raw: {:?}", way.id(), segregated, footpath, tags);
+            //let segregated = conditions.is_segregated();
+            //let footpath = conditions.is_footpath();
+            //let bikepath_left = conditions.is_bikepath("left");
+            //let bikepath_right = conditions.is_bikepath("right");
+            //if footpath || segregated {
+            //    tags.insert("bicycle_infrastructure".to_string(), "bicycle_way".to_string());
+            //}
+            //else {
+            //    tags.insert("bicycle_infrastructure".to_string(), "None".to_string());
+            //}
+            //println!("osm_id {} is segregated: {}, is footpath: {}, is bikepath left: {}, is bikepath right: {}", way.id(), segregated, footpath, bikepath_left, bikepath_right);
+            println!("assigned {:?} to osm_id {}", assessor_infra, way.id());
         }
+
     })?;
 
 
