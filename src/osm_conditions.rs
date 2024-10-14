@@ -4,13 +4,21 @@ use std::collections::HashMap;
 // 'a ist die lifetime-definition (solange Conditions existiert gilt der verweis zur hashmap)
 // pythons gc kümmert sich dadrum automatisch
 // & ist die referenz auf eine hashmap woanders
-#[derive(Clone, Copy)]
+// #[derive(Clone)]
+
 pub(crate) struct Conditions<'a> {
-    pub(crate) tags: &'a HashMap<String, String>
+    pub(crate) tags: &'a mut HashMap<String, String>
 }
 
 // hier beginnt die Implementierung der Methoden für die struct Conditions
 impl<'a> Conditions<'a> {
+    pub(crate) fn new(tags: &'a mut HashMap<String, String>) -> Conditions<'a> {
+        Conditions { tags }
+    }
+    pub fn set_infra<'b>(&mut self, infrastructure: &'b str) -> &'b str {
+        self.tags.insert("bicycle_infrastructure".to_string(), infrastructure.to_string());
+        infrastructure
+    }
     pub fn is_segregated(&self) -> bool {
         self.tags.get("segregated").map(|v| v == "yes").unwrap_or(false)
     }
