@@ -6,7 +6,7 @@ pub(crate) struct Assessor<'a> {
 }
 
 impl<'a> Assessor<'a> {
-    pub fn new(tags: &'a mut HashMap<&'a str, &'a str>) -> Assessor {
+    pub fn new(tags: &mut HashMap<String, String>) -> Assessor {
         let conditions = Conditions::new(tags);  // Conditions kann nur innerhalb von `assessor.rs` erstellt werden
         Assessor { conditions }
     }
@@ -43,8 +43,8 @@ impl<'a> Assessor<'a> {
         vec![cond_1]
     }
 
-    pub fn set_infra<'b: 'a>(&mut self, infrastructure: &'b str) -> &'b str {
-       self.conditions.tags.insert("bicycle_infrastructure", infrastructure);
+    pub fn set_infra<'b>(&mut self, infrastructure: &'b str) -> &'b str {
+       self.conditions.tags.insert("bicycle_infrastructure".to_string(), infrastructure.to_string());
        infrastructure
     }
 
