@@ -2,14 +2,22 @@ mod osm_conditions;
 mod assessor;
 
 use osmpbf::{ElementReader, Element};
-
+use benchmark_rs::stopwatch::StopWatch;
+use simple_logger::SimpleLogger;
 use std::collections::HashMap;
 use assessor::Assessor;
 use crate::osm_conditions::Conditions;
 use geo::{coord};
 use csv::Writer;
+use itertools::Itertools;
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #![allow(warnings)]
+    SimpleLogger::new().env().init().unwrap();
+    log::info!("Started assessor");
+    let mut stopwatch = StopWatch::new();
+    stopwatch.start();
     let path = "data/Leipzig_osm.osm.pbf";
 
     // ähnlich einer dict mit der osm_id als integer_64, einer weiteren hashmap mit kv-pairs der attribute
@@ -42,13 +50,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
             // way-tags sammeln
-            let mut tags: HashMap<_, _> = way.tags()
-                .map(|(key, value)| (key.to_owned(), value.to_owned()))
-                .collect();
+            // let mut tags: HashMap<_, _> = way.tags()
+            //     .map(|(key, value)| (key.to_owned(), value.to_owned()))
+            //     .collect();
+
+            let mut tags: HashMap<_, _> = way.tags().collect();
 
             // assessor initialisieren und starten
-            let mut assessor = Assessor { conditions: Conditions { tags: &mut tags }};
-            assessor.assess();
+            {
+                let mut assessor = Assessor { conditions: Conditions { tags: &mut tags.clone() } };
+                assessor.assess();
+            }
 
             // sammel referenznodes der ways und gib die koordinaten des ways an
             let mut way_coords = Vec::new();
@@ -67,15 +79,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 way_coords
                     .iter()
                     .map(|coord| format!("{} {}", coord.x, coord.y))
-                    .collect::<Vec<_>>()
                     .join(", ")
             );
 
             // wandel die assesste infrastruktur in einen string um. falls None, dann leeres zeichen.
-            let infra = if let Some(infrastructure) = tags.get("bicycle_infrastructure") {
+            let infra = if let Some(infrastructure) = &tags.get("bicycle_infrastructure") {
                 infrastructure.clone()
             } else {
-                "".to_string()
+                &""
             };
             // schreibe das ganze in eine csv.
             wtr.write_record(&[way.id().to_string(), infra.to_string(), way_coords_str]);
@@ -84,5 +95,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     })?;
     // lösche den writer-zwischenspeicher
     wtr.flush()?;
+    log::info!("Finished assessor, time: {}", stopwatch);
     Ok(())
 }
