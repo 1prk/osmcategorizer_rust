@@ -36,6 +36,13 @@ impl<'a> Assessor<'a> {
         vec![cond_1, cond_2, cond_3]
     }
 
+    pub fn mit_way(&self, c: &Conditions, direction: &str) -> Vec<bool> {
+        let cond_1 = c.can_cardrive() && !c.is_bikepath(direction) && !c.is_bikeroad() &&
+            !c.is_footpath() && !c.is_bikelane(direction) && !c.is_buslane(direction) &&
+            !c.is_path() && !c.is_track() && !c.cannot_bike();
+        vec![cond_1]
+    }
+
     pub fn set_infra<'b>(&mut self, infrastructure: &'b str) -> &'b str {
        self.conditions.tags.insert("bicycle_infrastructure".to_string(), infrastructure.to_string());
        infrastructure
@@ -46,7 +53,10 @@ impl<'a> Assessor<'a> {
         let cnd_bicycle_way_left = self.bicycle_way(&self.conditions, "left");
         let cnd_mixed_right = self.mixed_way(&self.conditions,"right");
         let cnd_mixed_left = self.mixed_way(&self.conditions, "left");
+        let cnd_mit_right = self.mit_way(&self.conditions, "right");
+        let cnd_mit_left = self.mit_way(&self.conditions, "left");
 
+        // condition 1
         // |&x| ist eine closure die wie eine lambda-funktion bei python funktioniert.
         // x ist die variable - da es boolean ist
         // reicht ein einfaches true um die bedingung zu erfüllen
@@ -68,6 +78,28 @@ impl<'a> Assessor<'a> {
             }
             else {
                 self.set_infra("bicycle_way_right_no_left");
+            }
+        }
+
+        // condition 2
+        if cnd_bicycle_way_left.iter().any(|&x| x) {
+            if self.conditions.is_bikelane("right") {
+                self.set_infra("bicycle_way_left_lane_right");
+            }
+            else if self.conditions.is_buslane("right") {
+                self.set_infra("bicycle_way_left_bus_right");
+            }
+            else if cnd_mixed_right.iter().any(|&x| x) {
+                self.set_infra("bicycle_way_left_mixed_right");
+            }
+            else if cnd_mit_right.iter().any(|&x| x) {
+                self.set_infra("bicycle_way_left_mit_right");
+            }
+            else if self.conditions.is_pedestrian("right") {
+                self.set_infra("bicycle_way_left_pedestrian_right");
+            }
+            else {
+                self.set_infra("bicycle_way_left_no_right");
             }
         }
     }

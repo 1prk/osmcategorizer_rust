@@ -34,7 +34,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     reader.for_each(|element| {
         if let Element::Way(way) = element {
-            if !way.tags().any(|(key, _)| key == "highway") {
+            if !way.tags().any(|(k, _)| k == "highway") &&
+                !way.tags().any(|(k, v)| k == "area" && v == "yes") &&
+                !way.tags().any(|(k, v)| k == "highway" && v == "platform"){
                 return;
             }
 
