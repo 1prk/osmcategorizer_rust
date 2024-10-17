@@ -101,3 +101,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Finished assessor, time: {}", stopwatch);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    // test für die nossener brücke in DD
+    fn assessor_osm() {
+        let mut tags = HashMap::new();
+        tags.insert("highway".to_string(), "path".to_string());
+        tags.insert("bicycle".to_string(), "designated".to_string());
+        tags.insert("foot".to_string(), "designated".to_string());
+        tags.insert("segregated".to_string(), "yes".to_string());
+        tags.insert("traffic_sign".to_string(), "DE:241".to_string());
+
+        // Erstelle einen mock WayData
+        let mut way_data = WayData {
+            id: 1,
+            refs: vec![1, 2],
+            tags: tags,
+        };
+
+        // Initialisiere den Assessor
+        let mut assessor = Assessor {
+            conditions: Conditions::new(&mut way_data.tags),
+        };
+
+        // Führe die Bewertung durch
+        assessor.assess();
+
+        // Überprüfe, ob ein bestimmter Zustand korrekt bewertet wurde
+        if let Some(value) = way_data.tags.get("bicycle_infrastructure") {
+            assert_eq!(value, "bicycle_way_both");
+            println!("assessed bike infrastructure correctly!")
+        } else {
+            panic!("wrong type of bike infrastructure assessed.");
+        }
+    }
+
+
+}

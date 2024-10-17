@@ -78,17 +78,15 @@ impl<'a> Conditions<'a> {
         let sidewalk_directional = format!("sidewalk:{}:{}", direction, mode);
         let cycleway_directional = format!("cycleway:{}:{}", direction, mode);
 
-        (self.tags.get(mode).map(|v| v == "designated").unwrap_or(false)
-            || self.tags.get(if mode == "foot" {
-            &sidewalk_directional
+        let is_designated = |key: &str| {
+            self.tags.get(key).map_or(false, |v| v == "designated")
+        };
+
+        if mode == "foot" {
+            is_designated(&sidewalk_directional) || is_designated("sidewalk:foot") || is_designated(&sidewalk)
         } else {
-            &cycleway_directional
-        }).map(|v| v == "designated").unwrap_or(false))
-            || self.tags.get(if mode == "foot" {
-            &sidewalk
-        } else {
-            &cycleway
-        }).map(|v| v == "designated").unwrap_or(false)
+            is_designated(&cycleway_directional) || is_designated("cycleway:bicycle") || is_designated(&cycleway)
+        }
     }
 
     pub fn is_designated(&self) -> bool {
@@ -129,7 +127,6 @@ impl<'a> Conditions<'a> {
     }
 
     pub fn is_service(&self) -> bool {
-        let generic = false;
         self.is_service_tag()
             || (self.is_agricultural() && self.is_accessible())
             || (self.is_path() && self.is_accessible())
@@ -179,24 +176,24 @@ impl<'a> Conditions<'a> {
         //let cycleway_conditions: = vec!["track", "sidepath", "crossing"]
 
         self.tags.get("highway").map(|v| v == "cycleway").unwrap_or(false)
-            || ((self.tags.iter().any(|(k, v)| k.contains(&bicycle_directional) && v == "designated")
-            && !self.tags.iter().any(|(k,v)|  k.contains(&lane_directional)))
+            || ((self.tags.iter().any(|(k, v)| k.contains(&bicycle_directional) || k.contains("bicycle") && v == "designated")
+            && !self.tags.iter().any(|(k,v)|  k.contains(&lane_directional) || k.contains("cycleway:lane")))
             || self.tags.get("cycleway").map(|v| v == "track" || v == "sidepath" || v == "crossing").unwrap_or(false)
             || self.tags.get(&cycleway_directional).map(|v| v == "track" || v == "sidepath" || v == "crossing").unwrap_or(false)
             || self.tags.get("cycleway:both").map(|v| v == "track" || v == "sidepath" || v == "crossing").unwrap_or(false)
-            || self.tags.iter().any(|(k,v)| k.contains(&trafficsign_directional) && v == "237"))
+            || self.tags.iter().any(|(k,v)| k.contains(&trafficsign_directional) || k.contains("traffic_sign") && v == "237"))
     }
 
     //        self.is_pedestrian_right = lambda x: ((self.is_footpath(x) and not self.can_bike(x) and not self.is_indoor(x))
     //                                           or (self.is_path(x) and self.can_walk_right(x) and not self.can_bike(x) and not self.is_indoor(x)))
     pub fn is_pedestrian(&self, direction: &str) -> bool {
-        ((self.is_footpath()
+        (self.is_footpath()
             && !self.can_bike()
             && !self.is_indoor())
             || (self.is_path()
             && self.can_walk(direction)
             && !self.can_bike()
-            && !self.is_indoor()))
+            && !self.is_indoor())
     }
 
     pub fn is_cyclehighway(&self) -> bool {
