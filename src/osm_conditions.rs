@@ -60,12 +60,14 @@ impl<'a> Conditions<'a> {
 
     pub fn can_bike(&self) -> bool {
         self.tags.get("bicycle").map(|v| v == "yes" || v == "designated").unwrap_or(false)
-            && self.tags.get("highway").map(|v| v.contains("motorway")).unwrap_or(false)
+            && self.tags.get("highway").map(|v| !v.contains("motorway")).unwrap_or(false)
     }
 
     pub fn cannot_bike(&self) -> bool {
         self.tags.get("bicycle").map(|v| v == "no" || v == "dismount" || v == "use_sidepath").unwrap_or(false)
-            || self.tags.get("highway").map(|v| v == "corridor" || v.contains("motorway") || v.contains("trunk")).unwrap_or(false)
+            || self.tags.get("highway").map(|v| v == "corridor"
+            || ["motorway", "motorway_link", "trunk", "trunk_link"].contains(&v.as_str())
+            || v.contains("trunk")).unwrap_or(false)
             || self.tags.get("access").map(|v| v == "customers").unwrap_or(false)
 
     }
@@ -75,6 +77,7 @@ impl<'a> Conditions<'a> {
     pub fn is_designated_bicycle(&self, direction: &str, mode: &str) -> bool {
         let sidewalk = format!("sidewalk:{}", mode);
         let cycleway = format!("cycleway:{}", mode);
+        let cycleway_bicycle = format!("cycleway:{}:bicycle", direction);
         let sidewalk_directional = format!("sidewalk:{}:{}", direction, mode);
         let cycleway_directional = format!("cycleway:{}:{}", direction, mode);
 
@@ -127,11 +130,14 @@ impl<'a> Conditions<'a> {
     }
 
     pub fn is_service(&self) -> bool {
-        self.is_service_tag()
-            || (self.is_agricultural() && self.is_accessible())
-            || (self.is_path() && self.is_accessible())
-            || (self.is_track() && self.is_accessible() && self.is_smooth() && self.is_vehicle_allowed())
-            && !self.is_designated()
+        let a = self.is_service_tag();
+        let acc = self.is_accessible();
+        let b = self.is_agricultural() && acc;
+        let c = self.is_path() && acc;
+        let d = self.is_track() && acc && self.is_smooth() && self.is_vehicle_allowed();
+        let e = !self.is_designated();
+
+        a || b || c || (d && e)
     }
 
     pub fn can_cardrive(&self) -> bool {
@@ -158,42 +164,59 @@ impl<'a> Conditions<'a> {
         }
     }
 
-    //lambda x: (x.get("highway") in ["cycleway"]
-    //                                        or (any(
-    //                     key for key, value in x.items() if 'right:bicycle' in key and value in ['designated'])
-    //                                            and not any(key for key, value in x.items() if key == 'cycleway:right:lane'))
-    //                                        or x.get("cycleway") in ["track", "sidepath", "crossing"]
-    //                                        or x.get("cycleway:right") in ["track", "sidepath", "crossing"]
-    //                                        or x.get("cycleway:both") in ["track", "sidepath", "crossing"]
-    //                                        or any(
-    //                     key for key, value in x.items() if 'right:traffic_sign' in key and value in ['237']))
-
     pub fn is_bikepath(&self, direction: &str) -> bool {
-        let bicycle_directional: String = format!("{}:bicycle", direction);
-        let cycleway_directional: String = format!("cycleway:{}", direction);
-        let lane_directional: String = format!("cycleway:{}:lane", direction);
-        let trafficsign_directional: String = format!("{}:traffic_sign", direction);
-        //let cycleway_conditions: = vec!["track", "sidepath", "crossing"]
+        let tag = |k: &str| self.tags.get(k).map(|v| v.as_str());
 
-        self.tags.get("highway").map(|v| v == "cycleway").unwrap_or(false)
-            || ((self.tags.iter().any(|(k, v)| k.contains(&bicycle_directional) || k.contains("bicycle") && v == "designated")
-            && !self.tags.iter().any(|(k,v)|  k.contains(&lane_directional) || k.contains("cycleway:lane")))
-            || self.tags.get("cycleway").map(|v| v == "track" || v == "sidepath" || v == "crossing").unwrap_or(false)
-            || self.tags.get(&cycleway_directional).map(|v| v == "track" || v == "sidepath" || v == "crossing").unwrap_or(false)
-            || self.tags.get("cycleway:both").map(|v| v == "track" || v == "sidepath" || v == "crossing").unwrap_or(false)
-            || self.tags.iter().any(|(k,v)| k.contains(&trafficsign_directional) || k.contains("traffic_sign") && v == "237"))
+        let is_designated = |key| {
+            self.tags.get(key).map(|v| v == "designated").unwrap_or(false)
+        };
+
+        let directional_keys = [
+            format!("{}:bicycle", direction),
+            "bicycle".to_string(),
+        ];
+
+        let is_cycleway_type = |key: &str| {
+            matches!(tag(key), Some("track" | "sidepath" | "crossing"))
+        };
+
+        let cycleway_keys = [
+            "cycleway",
+            &format!("cycleway:{}", direction),
+            "cycleway:both",
+        ];
+
+
+        if tag("highway") == Some("footway") && tag("segregated") != Some("yes") {
+            return false;
+        }
+
+        if cycleway_keys.iter().any(|k| tag(k) == Some("no")) {
+            return false;
+        }
+
+        let a = tag("highway") == Some("cycleway"); // hat die highway ein cycleway?
+        let b = directional_keys.iter().any(|k| is_designated(k)); // ist der weg für ein beliebiges key designated?
+        let c = !is_cycleway_type(&format!("cycleway:{}:lane", direction)); // ist die cycleway:{dir}:lane ein track, sidepath oder crossing?
+        let d = !is_cycleway_type("cycleway:lane"); // ist die cycleway:lane ein track, sidepath oder crossing?
+        let e = is_cycleway_type("cycleway"); // ist die cycleway ein track, sidepath oder crossing?
+        let f = is_cycleway_type(&format!("cycleway:{}", direction)); // ist die cycleway:{dir} ein track, sidepath oder crossing?
+        let g = is_cycleway_type("cycleway:both"); // ist die cycleway:both ein track, sidepath oder crossing?
+        let h = matches!(tag(&format!("{}:traffic_sign", direction)), Some("237")); // hat die cycleway:{dir} ein VZ 237?
+        let i = matches!(tag("traffic_sign"), Some("237")); // hat die cycleway ein VZ 237?
+
+        a || ( b && c && d ) || e || f || g || h || i
     }
 
-    //        self.is_pedestrian_right = lambda x: ((self.is_footpath(x) and not self.can_bike(x) and not self.is_indoor(x))
-    //                                           or (self.is_path(x) and self.can_walk_right(x) and not self.can_bike(x) and not self.is_indoor(x)))
     pub fn is_pedestrian(&self, direction: &str) -> bool {
-        (self.is_footpath()
-            && !self.can_bike()
-            && !self.is_indoor())
-            || (self.is_path()
-            && self.can_walk(direction)
-            && !self.can_bike()
-            && !self.is_indoor())
+        let a = self.is_footpath();
+        let b = !self.can_bike();
+        let c = !self.is_indoor();
+        let d = self.is_path();
+        let e = self.can_walk(direction);
+
+        ( a && b && c ) || ( d && e && b && c )
+
     }
 
     pub fn is_cyclehighway(&self) -> bool {
@@ -201,8 +224,10 @@ impl<'a> Conditions<'a> {
     }
 
     pub fn is_bikeroad(&self) -> bool {
-        self.tags.get("bicycle_road").map(|v| v == "yes").unwrap_or(false)
-            || self.tags.get("cyclestreet").map(|v| v == "yes").unwrap_or(false)
+        let bicycle_road = self.tags.get("bicycle_road").map(|v| v == "yes").unwrap_or(false);
+        let cyclestreet = self.tags.get("cyclestreet").map(|v| v == "yes").unwrap_or(false);
+
+        bicycle_road || cyclestreet
     }
 
     //        self.is_bikelane_right = lambda x: (x.get("cycleway") in ["lane", "shared_lane"]
@@ -214,10 +239,12 @@ impl<'a> Conditions<'a> {
         let cycleway_direction = format!("cycleway:{}", direction);
         let lane_direction = format!("{}:lane", direction);
 
-        self.tags.get("cycleway").map(|v| v == "lane" || v == "shared_lane").unwrap_or(false)
-            || self.tags.get(&cycleway_direction).map(|v| v == "lane" || v == "shared_lane").unwrap_or(false)
-            || self.tags.get("cycleway:both").map(|v| v == "lane" || v == "shared_lane").unwrap_or(false)
-            || self.tags.iter().any(|(k,v)| k.contains(&lane_direction) && v == "exclusive")
+        let a = self.tags.get("cycleway").map(|v| v == "lane" || v == "shared_lane").unwrap_or(false);
+        let b = self.tags.get(&cycleway_direction).map(|v| v == "lane" || v == "shared_lane").unwrap_or(false);
+        let c = self.tags.get("cycleway:both").map(|v| v == "lane" || v == "shared_lane").unwrap_or(false);
+        let d = self.tags.iter().any(|(k,v)| k.contains(&lane_direction) && v == "exclusive");
+
+        a || b || c || d
     }
 
     //         self.is_buslane_right = lambda x: (x.get("cycleway") == "share_busway"
@@ -226,9 +253,11 @@ impl<'a> Conditions<'a> {
     pub fn is_buslane(&self, direction: &str) -> bool {
         let cycleway_direction = format!("cycleway:{}", direction);
 
-        self.tags.get("cycleway").map(|v| v == "share_busway").unwrap_or(false)
-            || self.tags.get(&cycleway_direction).map(|v| v == "share_busway").unwrap_or(false)
-            || self.tags.get("cycleway_both").map(|v| v == "share_busway").unwrap_or(false)
+        let a = self.tags.get("cycleway").map(|v| v == "share_busway").unwrap_or(false);
+        let b = self.tags.get(&cycleway_direction).map(|v| v == "share_busway").unwrap_or(false);
+        let c = self.tags.get("cycleway:both").map(|v| v == "share_busway").unwrap_or(false);
+
+        a || b || c
     }
 
     //lambda x: (
@@ -237,8 +266,9 @@ impl<'a> Conditions<'a> {
     //             'traffic_sign:forward'])
     //         )
     pub fn is_obligated(&self) -> bool {
-        //benutzungspflicht durch VZ 237, 240, 241
-        self.tags.iter().any(|(k,v)| k.contains("traffic_sign") && v == "241" || v == "240" || v == "237")
+        self.tags.iter().any(|(k, v)| {
+            k.contains("traffic_sign") && (v == "237" || v == "240" || v == "241")
+        })
     }
 
 

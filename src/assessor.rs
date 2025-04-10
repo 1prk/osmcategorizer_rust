@@ -63,7 +63,7 @@ impl<'a> Assessor<'a> {
         let cnd_bicycle_way_right: Vec<bool> = self.bicycle_way(&self.conditions, "right");
         let cnd_bicycle_way_left: Vec<bool> = self.bicycle_way(&self.conditions, "left");
         let cnd_bicycle_lane_right: Vec<bool> = self.bicycle_lane(&self.conditions, "right");
-        let cnd_bicycle_lane_left: Vec<bool> = self.bicycle_way(&self.conditions, "left");
+        let cnd_bicycle_lane_left: Vec<bool> = self.bicycle_lane(&self.conditions, "left");
         let cnd_mixed_right: Vec<bool> = self.mixed_way(&self.conditions,"right");
         let cnd_mixed_left: Vec<bool> = self.mixed_way(&self.conditions, "left");
         let cnd_mit_right: Vec<bool> = self.mit_way(&self.conditions, "right");
@@ -98,7 +98,7 @@ impl<'a> Assessor<'a> {
             else if cnd_mixed_left.iter().any(|&x| x)  {
                 self.set_infra("bicycle_way_right_mixed_left");
             }
-            else if cnd_mixed_right.iter().any(|&x| x)  {
+            else if cnd_mit_left.iter().any(|&x| x)  {
                 self.set_infra("bicycle_way_right_mit_left");
             }
             else {

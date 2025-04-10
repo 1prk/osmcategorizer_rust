@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Started assessor");
     let mut stopwatch = StopWatch::new();
     stopwatch.start();
-    let path = "./data/sachsen-latest.osm.pbf";
+    let path = "./data/leipzig_osm.osm.pbf";
 
     // ähnlich einer dict mit der osm_id als integer_64, einer weiteren hashmap mit kv-pairs der attribute
     let mut node_bin: HashSet<i64> = HashSet::new();
@@ -61,9 +61,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 node_coords.insert(node.id(), (lat, lon));
             }
         }
-    })?;
+    }).expect("TODO: panic message");
 
-    let mut wtr = Writer::from_path("./data/sachsen_assessed_test.csv")?;
+    let mut wtr = Writer::from_path("./data/leipzig_assessed.csv")?;
     wtr.write_record(&["osm_id", "bicycle_infrastructure", "WKT"])?;
 
     // lese alle nodes aus um geometrien zu sammeln
@@ -107,39 +107,50 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    #[test]
     // test für die nossener brücke in DD
-    fn assessor_osm() {
-        let mut tags = HashMap::new();
-        tags.insert("highway".to_string(), "path".to_string());
-        tags.insert("bicycle".to_string(), "designated".to_string());
-        tags.insert("foot".to_string(), "designated".to_string());
-        tags.insert("segregated".to_string(), "yes".to_string());
-        tags.insert("traffic_sign".to_string(), "DE:241".to_string());
+    #[test]
+    fn assessor_osm() -> Result<(), Box<dyn std::error::Error>> {
+        let osm_attributes: HashMap<i64, &str> = HashMap::from([
+            (1057362466, "mixed_way_both"),
+            (422033331, "bicycle_way_both"),
+            (138438926, "bicycle_road"),
+            (866753890, "bicycle_lane_right_mit_left"),
+            (374714875, "bicycle_lane_both"),
+            (994847195, "bicycle_way_right_mit_left"),
+        ]);
 
-        // Erstelle einen mock WayData
-        let mut way_data = WayData {
-            id: 1,
-            refs: vec![1, 2],
-            tags: tags,
-        };
+        let path = "./data/Leipzig_osm.osm.pbf";
+        let reader = ElementReader::from_path(path)?;
+        let mut ways = Vec::new();
+        let mut node_bin: HashSet<i64> = HashSet::new();
 
-        // Initialisiere den Assessor
-        let mut assessor = Assessor {
-            conditions: Conditions::new(&mut way_data.tags),
-        };
 
-        // Führe die Bewertung durch
-        assessor.assess();
+        reader.for_each(|element| {
+            if let Element::Way(way) = element {
+                if let Some(expected) = osm_attributes.get(&way.id()) {
+                    let refs: Vec<i64> = way.refs().collect();
+                    let tags = way.tags()
+                        .map(|(k, v)| (k.to_string(), v.to_string()))
+                        .collect();
 
-        // Überprüfe, ob ein bestimmter Zustand korrekt bewertet wurde
-        if let Some(value) = way_data.tags.get("bicycle_infrastructure") {
-            assert_eq!(value, "bicycle_way_both");
-            println!("assessed bike infrastructure correctly!")
-        } else {
-            panic!("wrong type of bike infrastructure assessed.");
+                    node_bin.extend(&refs);
+                    ways.push((WayData { id: way.id(), refs, tags }, *expected));
+                }
+            }
+        })?;
+
+        for (mut way, expected) in ways {
+            let mut assessor = Assessor {
+                conditions: Conditions::new(&mut way.tags),
+            };
+            assessor.assess();
+
+            let actual = way.tags.get("bicycle_infrastructure").map(String::as_str);
+            println!("way_id: {:?}, actual: {:?}, expected: {:?}", way.id, actual, expected);
+            assert_eq!(actual, Some(expected), "Way {} failed", way.id);
         }
-    }
 
+        Ok(())
+    }
 
 }
