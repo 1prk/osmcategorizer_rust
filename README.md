@@ -82,7 +82,3 @@ cargo test
 ## Performance
 
 The tool uses parallel processing to efficiently handle large OSM datasets. Processing time depends on file size and whether geometry export is enabled.
-
-## License
-
-[Add your license here]
